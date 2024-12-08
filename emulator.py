@@ -3,6 +3,7 @@ import sys
 import socket
 import traceback
 import ipaddress
+from datetime import datetime
 
 parser = argparse.ArgumentParser(description="Link State Routing Emulator")
 
@@ -24,6 +25,7 @@ hostname = socket.gethostname()
 ipAddr = socket.gethostbyname(hostname)
 
 reqAddr = (ipAddr, args.port)
+hostKey = (ipaddress.ipaddress(ipAddr), int(args.port))
 
 # open socket
 try:
@@ -39,11 +41,20 @@ except:
 sendSoc = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 # global variables
-topology = dict()
+topology = dict() # keep dictionary of immediate links between nodes
+forwardingTable = dict() # {dest: (nextHop, dist)}
+nodesLocationDict = dict() # keep ordered list of destinations (excluding self)
+largestSeqNo = list() # largest sequence number for each node
+latestTimestamp = list() # last time stamp a HelloMessage was recieved (from neighbors)
+forwardingTable = list()
 
 def readtopology():
     global topology
-    topology = dict()
+    global nodesLocationDict
+    global largestSeqNo
+    global latestTimestamp
+
+    time = datetime.now()
 
     # read topology file
     try:
@@ -53,13 +64,13 @@ def readtopology():
             # iterate over lines in file and add nodes to topology
             for line in lines:
                 nodes = line.split()
-                linksToAdd = list()
+                linksToAdd = dict()
 
                 # get link values 
                 for i in range(1, len(nodes)):
                     nodeVals = nodes[i].split(',')
-                    node = (ipaddress.ip_address(nodeVals[0]), int(nodeVals[1]), int(nodeVals[2]))
-                    linksToAdd.append(node)
+                    nodeKey = (ipaddress.ip_address(nodeVals[0]), int(nodeVals[1]))
+                    linksToAdd[nodeKey] = int(nodeVals[2])
 
                 # get dict key
                 keyVals = nodes[0].split(',')
@@ -68,10 +79,17 @@ def readtopology():
                 # add value to dictionary
                 topology[key] = linksToAdd
 
+                # add to nodes dict and sequence number
+                nodesLocationDict[key] = len(largestSeqNo)
+                largestSeqNo.append((key, 0))
     except FileNotFoundError:
         print(f"File {args.fileName} not found")
     except:
         print(traceback.format_exc())
+
+    # get neighbor time stamps
+    for node in topology[hostKey].keys():
+        latestTimestamp.append((node, time))
 
 
 def createroutes():
@@ -90,8 +108,6 @@ def cleanup():
 
 def main():
     readtopology()
-    global topology
-    print(topology)
     cleanup()
 
 if __name__ == '__main__':
