@@ -45,7 +45,6 @@ sendSoc = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 # global variables
 topology = dict() # dictionary of immediate links between nodes
 topologyRef = dict() # keep dictionary of initial links between nodes
-forwardingTable = dict() # {dest: (nextHop, dist)}
 
 nodesLocationDict = dict() # keep ordered list of destinations (excluding self)
 largestSeqNo = list() # largest sequence number for each node
@@ -54,7 +53,7 @@ neighborsLocationDict = dict() # doctionary of the locations of
 latestTimestamp = list() # last time stamp a HelloMessage was recieved (from neighbors)
 isUp = list() # list of whether neighbors are up or down
 
-forwardingTable = list() 
+forwardingTable = list() # [(dest, nextHop)]
 
 helloInterval = timedelta(milliseconds=1000)
 downInterval = timedelta(milliseconds=2100)
@@ -65,8 +64,11 @@ lastLinkStateMessage = datetime.now() - timedelta(days=1)
 
 isListening = True
 
+lastSeqNoSent = 0
+startTTL = 15
+
 # hello packet format: type 1B, srcIP 4B, srcPort 2B
-# link state packet format: type 1B, srcIP 4B, srcPort 2B, seqNo 4B, TTL 4B, len 4B, data
+# link state packet format: type 1B, srcIP 4B, srcPort 2B, lastSenderIP 4B, lastSenderPort 2B, seqNo 4B, TTL 4B, len 4B, data
 # route trace packet format: type 1B, srcIP 4B, srcPort 2B, destIP 4B, destPort 2B, TTL 4b
 
 def readtopology():
@@ -105,6 +107,7 @@ def readtopology():
                 # add to nodes dict and sequence number
                 nodesLocationDict[key] = len(largestSeqNo)
                 largestSeqNo.append((key, 0))
+
     except FileNotFoundError:
         print(f"File {args.fileName} not found")
         sys.exit()
@@ -133,7 +136,7 @@ def handlePacket(pack, time):
     global topology
     global topologyRef
 
-    pType = pack[0] # 'H' = helloMessage, 'L' = linkeStateMessage, 'T' = routetrace
+    pType = pack[0] # 'H' = helloMessage, 'L' = linkeStateMessage, 'O' = time out, 'T' = routetrace
 
     if pType < 4: # network traffic
         return (78, False) # 78 = 'N' for network traffic
@@ -141,7 +144,7 @@ def handlePacket(pack, time):
     # get sender key
     srcIP = socket.ntohl(int.from_bytes(pack[1:5], 'big'))
     srcPort = socket.ntohs(int.from_bytes(pack[5:7], 'big'))
-    senderKey = (ipaddress.ip_address(srcIP), int(srcPort))
+    senderKey = (ipaddress.ip_address(srcIP), srcPort)
 
 
     if pType == 72: # helloMessage
@@ -172,8 +175,8 @@ def handlePacket(pack, time):
 
     if pType == 76: # link state message
         # get sequence number
-        seqNo = socket.ntohl(int.from_bytes(pack[7:11], 'big'))
-        length = socket.ntohl(int.from_bytes(pack[15:19], 'big'))
+        seqNo = socket.ntohl(int.from_bytes(pack[13:17], 'big'))
+        length = socket.ntohl(int.from_bytes(pack[21:25], 'big'))
 
         # check if node exists
         if senderKey in nodesLocationDict.keys():
@@ -183,7 +186,7 @@ def handlePacket(pack, time):
             largestSeqNo[nodesLocationDict[senderKey]] = seqNo
 
             # check topology
-            newDict = pickle.loads(pack[19:19 + length])
+            newDict = pickle.loads(pack[25:25 + length])
 
             # check if newDict is different from old dict
             if newDict == topology[senderKey]:
@@ -197,7 +200,7 @@ def handlePacket(pack, time):
             largestSeqNo.append((senderKey, seqNo))
             return (pType, True)
 
-    if pType == 84: # route trace packet
+    if pType == 79 or pType == 84: # route trace packet 'O' or 'T'
         return (pType, False)
 
     return (None, False) # wrong packet
@@ -220,8 +223,8 @@ def createroutes():
                 buildForwardTable()
 
             # check if this recieved packet should be forwarded
-            if handled[0] == 76 or handled[0] == 78 or handled[0] == 84: # 'N', 'L', 'T'
-                forwardpacket(data, addr) 
+            if handled[0] == 76 or handled[0] == 78 or handled[0] == 79 or handled[0] == 84: # 'N', 'L', 'O', 'T'
+                forwardpacket(data, addr, handled[0])
 
             # check if a new link state message needs to be created
             if handled[0] == 72 and handled[1]:
@@ -269,14 +272,110 @@ def sayHello():
         dest = (str(destKey[0]), destKey[1])
         sendSoc.sendto(packet, dest)
 
-# sends link state packet
-# link state packet format: type 1B, srcIP 4B, srcPort 2B, seqNo 4B, TTL 4B, len 4B, data
+# sends link state from this address
+# link state packet format: type 1B, srcIP 4B, srcPort 2B, lastSenderIP 4B, lastSenderPort 2B, seqNo 4B, TTL 4B, len 4B, data
 def sendLinkState():
-    pass
+    global lastSeqNoSent
+    lastSeqNoSent += 1
+    # serialize data
+    linkStateToSend = pickle.dumps(topology[hostKey])
+    # make packet
+    pType = ord('L').to_bytes(1, 'big')
+    srcIP = socket.htonl(int(hostKey[0])).to_bytes(4, 'big')
+    srcPort = socket.htons(hostKey[1]).to_bytes(2, 'big')
+    lastSenderIP = socket.htonl(int(hostKey[0])).to_bytes(4, 'big')
+    lastSenderPort = socket.htons(hostKey[1]).to_bytes(2, 'big')
+    seqNo = socket.htonl(lastSeqNoSent).to_bytes(4, 'big')
+    tTL = socket.htonl(startTTL).to_bytes(4, 'big')
+    length = socket.htonl(len(linkStateToSend)).to_bytes(4, 'big')
+    packet = pType + srcIP + srcPort + lastSenderIP + lastSenderPort + seqNo + tTL + length + linkStateToSend
 
-def forwardpacket(data, addr):
+    # send packets to all neighbors
+    for destKey in neighborsLocationDict.keys():
+        dest = (str(destKey[0]), destKey[1])
+        sendSoc.sendto(packet, dest)
+
+
+def forwardpacket(data, addr, pType):
     # check packet type and what to do with it
-    # reliable flooding
+    if pType == 76: # network traffic
+        pass # send to next spot in forwarding table
+
+    if pType == 78: # link state traffic # reliable flooding
+        # check if sequence number is old
+        srcIP = socket.ntohl(int.from_bytes(data[1:5], 'big'))
+        srcPort = socket.ntohs(int.from_bytes(data[5:7], 'big'))
+        senderKey = (ipaddress.ip_address(srcIP), srcPort)
+        seqNo = socket.ntohl(int.from_bytes(data[13:17], 'big'))
+
+        if largestSeqNo[nodesLocationDict[senderKey]] >= seqNo:
+            return # seqNo was old
+
+        # check if TTL is 0
+        oldTTL = socket.ntohl(int.from_bytes(data[17:21], 'big'))
+        if oldTTL == 0:
+            # do I send time out packet here?
+            return # do not forward this
+        
+        # get old values
+        lastSenderIP = socket.ntohl(int.from_bytes(data[7:11], 'big'))
+        lastSenderPort = socket.ntohs(int.from_bytes(data[11:13], 'big'))
+        lastSender = (ipaddress.ip_address(lastSenderIP), lastSenderPort)
+
+        first = data[0:7]
+        second = data[13:17]
+        third = data[21:]
+
+        # make new values
+        newSenderIP = socket.htonl(int(hostKey[0])).to_bytes(4, 'big')
+        newSenderPort = socket.htons(hostKey[1]).to_bytes(2, 'big')
+        newTTL = socket.htonl(oldTTL - 1).to_bytes(4, 'big')
+
+        # make new packet to forward
+        forwardPacket = first + newSenderIP + newSenderPort + second + newTTL + third
+
+        # forward packet to all neighbors except last sender
+        # send packets to all neighbors
+        for destKey in neighborsLocationDict.keys():
+            if destKey == lastSender:
+                continue # skip who sent the packet
+
+            dest = (str(destKey[0]), destKey[1])
+            sendSoc.sendto(forwardPacket, dest)
+        
+        return # packets sent to neighbors
+
+
+    if pType == 79 or pType == 84: # routetrace traffic
+        # route trace packet format: type 1B, srcIP 4B, srcPort 2B, destIP 4B, destPort 2B, TTL 4b
+
+        # get destination and source addresses
+        srcIP = socket.ntohl(int.from_bytes(data[1:5], 'big'))
+        srcPort = socket.ntohs(int.from_bytes(data[5:7], 'big'))
+        srcSend = (str(ipaddress.ip_address(srcIP)), srcPort)
+
+        destIP = socket.ntohl(int.from_bytes(data[7:11], 'big'))
+        destPort = socket.ntohs(int.from_bytes(data[11:13], 'big'))
+        destKey = (ipaddress.ip_address(destIP), destPort)
+
+        # check if TTL is 0
+        oldTTL = socket.ntohl(int.from_bytes(data[17:21], 'big'))
+        if oldTTL == 0:
+            sendRouteTraceTimeOut(srcSend)
+            return # do not forward this
+
+        # decrememnt TTL and make new packet
+        first = data[:13]
+        oldTTL = socket.ntohl(int.from_bytes(data[13:17], 'big'))
+        forwardPacket = first + socket.htonl(oldTTL - 1).to_bytes(4, 'big')
+
+        # send packet to next destination
+        nextHop = forwardingTable[neighborsLocationDict[destKey]][1]
+        sendSoc.sendto(forwardPacket, nextHop)
+
+
+
+def sendRouteTraceTimeOut(destAddr):
     pass
 
 def buildForwardTable():
