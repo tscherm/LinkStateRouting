@@ -16,10 +16,7 @@ args = parser.parse_args()
 
 # check port numbers
 if 2049 > args.port or args.port > 65536:
-    print("Sender port out of range.")
-    sys.exit()
-if 2049 > args.port or args.port > 65536:
-    print("Requester port out of range.")
+    print("Port out of range.")
     sys.exit()
 
 # open port (to listen on only?)
@@ -69,7 +66,7 @@ startTTL = 15
 
 # hello packet format: type 1B, srcIP 4B, srcPort 2B
 # link state packet format: type 1B, srcIP 4B, srcPort 2B, lastSenderIP 4B, lastSenderPort 2B, seqNo 4B, TTL 4B, len 4B, data
-# route trace packet format: type 1B, srcIP 4B, srcPort 2B, destIP 4B, destPort 2B, TTL 4b
+# route trace packet format: type 1B, srcIP 4B, srcPort 2B, destIP 4B, destPort 2B, senderIP 4B, senderPort 2B, TTL 4B
 
 def readtopology():
     global topology
@@ -305,10 +302,10 @@ def forwardpacket(data, addr, pType):
         # check if sequence number is old
         srcIP = socket.ntohl(int.from_bytes(data[1:5], 'big'))
         srcPort = socket.ntohs(int.from_bytes(data[5:7], 'big'))
-        senderKey = (ipaddress.ip_address(srcIP), srcPort)
+        srcKey = (ipaddress.ip_address(srcIP), srcPort)
         seqNo = socket.ntohl(int.from_bytes(data[13:17], 'big'))
 
-        if largestSeqNo[nodesLocationDict[senderKey]] >= seqNo:
+        if largestSeqNo[nodesLocationDict[srcKey]] >= seqNo:
             return # seqNo was old
 
         # check if TTL is 0
@@ -346,8 +343,8 @@ def forwardpacket(data, addr, pType):
         return # packets sent to neighbors
 
 
-    if pType == 79 or pType == 84: # routetrace traffic
-        # route trace packet format: type 1B, srcIP 4B, srcPort 2B, destIP 4B, destPort 2B, TTL 4b
+    if pType == 79 or pType == 84: # routetrace traffic 'O', 'T'
+        # route trace packet format: type 1B, srcIP 4B, srcPort 2B, destIP 4B, destPort 2B, senderIP 4B, senderPort 2B, TTL 4B
 
         # get destination and source addresses
         srcIP = socket.ntohl(int.from_bytes(data[1:5], 'big'))
@@ -358,16 +355,32 @@ def forwardpacket(data, addr, pType):
         destPort = socket.ntohs(int.from_bytes(data[11:13], 'big'))
         destKey = (ipaddress.ip_address(destIP), destPort)
 
+        senderIP = socket.ntohl(int.from_bytes(data[13:17], 'big'))
+        senderPort = socket.ntohs(int.from_bytes(data[17:19], 'big'))
+        senderSend = (senderIP, senderPort)
+
         # check if TTL is 0
         oldTTL = socket.ntohl(int.from_bytes(data[17:21], 'big'))
         if oldTTL == 0:
-            sendRouteTraceTimeOut(srcSend)
+            sendRouteTraceTimeOut(srcSend, senderSend)
             return # do not forward this
 
         # decrememnt TTL and make new packet
-        first = data[:13]
-        oldTTL = socket.ntohl(int.from_bytes(data[13:17], 'big'))
+        first = data[:19]
+        oldTTL = socket.ntohl(int.from_bytes(data[19:23], 'big'))
         forwardPacket = first + socket.htonl(oldTTL - 1).to_bytes(4, 'big')
+
+        # check if this is the destination address
+        if destKey == hostKey:
+            # check what type of packet this is
+            if pType == 79: # 'O'
+                # send packet to route trace application
+                nextHop = (str(ipaddress.ip_address(senderSend[0])), senderSend[1])
+                sendSoc.sendto(forwardPacket, nextHop)
+            else: # 'T'
+                # send 'O' packet back to src
+                sendRouteTraceTimeOut(srcSend, senderSend)
+
 
         # send packet to next destination
         nextHop = forwardingTable[neighborsLocationDict[destKey]][1]
@@ -375,7 +388,7 @@ def forwardpacket(data, addr, pType):
 
 
 
-def sendRouteTraceTimeOut(destAddr):
+def sendRouteTraceTimeOut(destAddr, senderAddr):
     pass
 
 def buildForwardTable():
