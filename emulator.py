@@ -3,7 +3,7 @@ import sys
 import socket
 import traceback
 import ipaddress
-from datetime import datetime
+from datetime import datetime, timedelta
 import pickle
 import copy
 
@@ -56,9 +56,12 @@ isUp = list() # list of whether neighbors are up or down
 
 forwardingTable = list() 
 
-helloInterval = 1
-dropInterval = 2.5
-linkInterval = 1
+helloInterval = timedelta(milliseconds=1000)
+downInterval = timedelta(milliseconds=2100)
+linkInterval = timedelta(milliseconds=4500)
+
+lastHelloMessage = datetime.now() - timedelta(days=1)
+lastLinkStateMessage = datetime.now() - timedelta(days=1)
 
 isListening = True
 
@@ -122,6 +125,7 @@ def readtopology():
 # updates tables if needed
 # does NOT update forwarding table or send packets
 # returns (type of packet, if topology change was made)
+# if ('H', True) need to send new LinkStateMessage
 def handlePacket(pack, time):
     global neighborsLocationDict
     global latestTimestamp
@@ -132,7 +136,7 @@ def handlePacket(pack, time):
     pType = pack[0] # 'H' = helloMessage, 'L' = linkeStateMessage, 'T' = routetrace
 
     if pType < 4: # network traffic
-        return (pType, False)
+        return (78, False) # 78 = 'N' for network traffic
 
     # get sender key
     srcIP = socket.ntohl(int.from_bytes(pack[1:5], 'big'))
@@ -153,6 +157,7 @@ def handlePacket(pack, time):
                 isUp[neighborsLocationDict[senderKey]] = True
                 # I assume no link distance data is sent over helloMessage
                 # and it is assumed to be the same as the txt file described
+                # ??? Do i need to update the backwards sending topology[senderKey][hostKey] ???
                 topology[hostKey][senderKey] = topologyRef[hostKey][senderKey]
                 return (pType, True)
             else:
@@ -168,7 +173,6 @@ def handlePacket(pack, time):
     if pType == 76: # link state message
         # get sequence number
         seqNo = socket.ntohl(int.from_bytes(pack[7:11], 'big'))
-        tTL = socket.ntohl(int.from_bytes(pack[11:15], 'big'))
         length = socket.ntohl(int.from_bytes(pack[15:19], 'big'))
 
         # check if node exists
@@ -198,11 +202,9 @@ def handlePacket(pack, time):
 
     return (None, False) # wrong packet
 
-# ipmlements Djikstra's to update forwarding table using topology
-def updateForwardingTable():
-    pass
 
 def createroutes():
+    global lastHelloMessage
     # check for packet
     while isListening:
         try:
@@ -210,19 +212,66 @@ def createroutes():
             data, addr = recSoc.recvfrom(4096)
             handled = handlePacket(data, datetime.now())
 
+            if handled[0] == None:
+                continue # miscleanous packet
+
             # check if forwarding table needs to be updated
             if handled[1]:
-                updateForwardingTable()
+                buildForwardTable()
 
-            forwardpacket(data, addr)
+            # check if this recieved packet should be forwarded
+            if handled[0] == 76 or handled[0] == 78 or handled[0] == 84: # 'N', 'L', 'T'
+                forwardpacket(data, addr) 
+
+            # check if a new link state message needs to be created
+            if handled[0] == 72 and handled[1]:
+                sendLinkState()
 
         except BlockingIOError:
             pass # skip down to check intervals
+        except KeyboardInterrupt:
+            sys.exit()
+        except:
+            print("Something went wrong when listening for or interacting with packet.")
+            print(traceback.format_exc())
         
-    
-        # Djikstras
+        # send helloMessage timed
+        if lastHelloMessage <= datetime.now() - helloInterval:
+            sayHello()
+        
+        # check for neighbors that have not sent helloMessage
+        updateFT = False
+        for key in neighborsLocationDict.keys():
+            i = neighborsLocationDict[key]
+            if latestTimestamp[i] < timedelta.now() - downInterval and isUp[i]:
+                updateFT = True
+                isUp[i] = False
+            
+        if updateFT:
+            buildForwardTable()
+        
+        # send LinkStateMessage
+        if lastLinkStateMessage <= datetime.now() - linkInterval:
+            sendLinkState()
 
-        
+
+# sends hello packet to all neighbors wether they are up or not
+# hello packet format: type 1B, srcIP 4B, srcPort 2B
+def sayHello():
+    # make packet
+    pType = ord('H').to_bytes(1, 'big')
+    srcIP = socket.htonl(int(hostKey[0])).to_bytes(4, 'big')
+    srcPort = socket.htons(hostKey[1]).to_bytes(2, 'big')
+    packet = pType + srcIP + srcPort
+
+    # send packets to all neighbors
+    for destKey in neighborsLocationDict.keys():
+        dest = (str(destKey[0]), destKey[1])
+        sendSoc.sendto(packet, dest)
+
+# sends link state packet
+# link state packet format: type 1B, srcIP 4B, srcPort 2B, seqNo 4B, TTL 4B, len 4B, data
+def sendLinkState():
     pass
 
 def forwardpacket(data, addr):
