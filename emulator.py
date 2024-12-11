@@ -393,7 +393,7 @@ def forwardpacket(data, addr, pType):
         # get destination and source addresses
         srcIP = socket.ntohl(int.from_bytes(data[1:5], 'big'))
         srcPort = socket.ntohs(int.from_bytes(data[5:7], 'big'))
-        srcSend = (str(ipaddress.ip_address(srcIP)), srcPort)
+        srcKey = (ipaddress.ip_address(srcIP), srcPort)
         srcRTSend = (int(ipaddress.ip_address(srcIP)), srcPort)
 
         destIP = socket.ntohl(int.from_bytes(data[7:11], 'big'))
@@ -416,8 +416,14 @@ def forwardpacket(data, addr, pType):
                 sendSoc.sendto(data, nextHop)
                 return
             else: # 'T'
+                # check if packet should be sent back to trace immediately
                 # send 'O' packet back to src
-                sendRouteTraceReturn(srcRTSend, senderSend)
+                if srcKey == destKey:
+                    # no need to change packet
+                    nextHop = (str(ipaddress.ip_address(senderSend[0])), senderSend[1])
+                    sendSoc.sendto(data, nextHop)
+                else:
+                    sendRouteTraceReturn(srcRTSend, senderSend)
                 return
 
         # check if TTL is 0
