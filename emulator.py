@@ -394,6 +394,7 @@ def forwardpacket(data, addr, pType):
         srcIP = socket.ntohl(int.from_bytes(data[1:5], 'big'))
         srcPort = socket.ntohs(int.from_bytes(data[5:7], 'big'))
         srcSend = (str(ipaddress.ip_address(srcIP)), srcPort)
+        srcRTSend = (int(ipaddress.ip_address(srcIP)), srcPort)
 
         destIP = socket.ntohl(int.from_bytes(data[7:11], 'big'))
         destPort = socket.ntohs(int.from_bytes(data[11:13], 'big'))
@@ -404,14 +405,13 @@ def forwardpacket(data, addr, pType):
         senderSend = (senderIP, senderPort)
 
         # check if TTL is 0
-        oldTTL = socket.ntohl(int.from_bytes(data[17:21], 'big'))
+        oldTTL = socket.ntohl(int.from_bytes(data[19:23], 'big'))
         if oldTTL == 0:
-            sendRouteTraceReturn(srcSend, senderSend)
+            sendRouteTraceReturn(srcRTSend, senderSend)
             return # do not forward this
 
         # decrememnt TTL and make new packet
         first = data[:19]
-        oldTTL = socket.ntohl(int.from_bytes(data[19:23], 'big'))
         forwardPacket = first + socket.htonl(oldTTL - 1).to_bytes(4, 'big')
 
         # check if this is the destination address
@@ -424,7 +424,7 @@ def forwardpacket(data, addr, pType):
                 return
             else: # 'T'
                 # send 'O' packet back to src
-                sendRouteTraceReturn(srcSend, senderSend)
+                sendRouteTraceReturn(srcRTSend, senderSend)
                 return
 
 

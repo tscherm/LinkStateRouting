@@ -9,7 +9,7 @@ parser = argparse.ArgumentParser(description="Network Emulator")
 parser.add_argument("-a", "--routetrace_port", type=int, required=True, dest="rtPort")
 parser.add_argument("-b", "--source_hostname", type=str, required=True, dest="srcHost")
 parser.add_argument("-c", "--source_port", type=int, required=True, dest="srcPort")
-parser.add_argument("-d", "--destination_hostname", type=int, required=True, dest="destHost")
+parser.add_argument("-d", "--destination_hostname", type=str, required=True, dest="destHost")
 parser.add_argument("-e", "--destination_port", type=int, required=True, dest="destPort")
 parser.add_argument("-f", "--debug_option", type=int, required=True, dest="debug")
 
@@ -25,7 +25,7 @@ hostname = socket.gethostname()
 ipAddr = socket.gethostbyname(hostname)
 
 # get addresses
-hostAddr = (ipaddress.ip_address(ipAddr), args.port)
+hostAddr = (ipaddress.ip_address(ipAddr), args.rtPort)
 srcAddr = (ipaddress.ip_address(socket.gethostbyname(args.srcHost)), args.srcPort)
 destAddr = (ipaddress.ip_address(socket.gethostbyname(args.destHost)), args.destPort)
 
@@ -44,7 +44,7 @@ packetStart = pType + srcIP + srcPort + destIP + destPort + senderIP + senderPor
 # open socket
 try:
     recSoc = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    recSoc.bind(hostAddr)
+    recSoc.bind((str(hostAddr[0]), hostAddr[1]))
     recSoc.setblocking(True)
 except:
     print("An error occured binding the socket")
@@ -86,23 +86,20 @@ def sendRTPacket(tTL):
     sendSoc.sendto(packet, src)
 
     # print packet information
-    print("ROUTETRACE PACKET SENT:")
     srcP = (str(srcAddr[0]), srcAddr[1])
     destP = (str(destAddr[0]), destAddr[1])
 
-    if args.debug == 0:
-        print(f"{tTL} {srcP[0]}, {srcP[1]}")
-    else:
+    if args.debug == 1:
+        print("ROUTETRACE PACKET SENT:")
         print(f"{tTL} {srcP[0]}, {srcP[1]} {destP[0]}, {destP[1]}")
 
 
 
 # handles packets and prints if needed
 def handlePacket(data, tTL):
+    print(data[0])
     if data[0] != 79:
         return # wrong packet type
-    
-    print("RETURN PACKET RECIEVED:")
     
     # print responders IP and port
     # get destination and source addresses
@@ -118,6 +115,7 @@ def handlePacket(data, tTL):
     if args.debug == 0:
         print(f"{tTL} {srcP[0]}, {srcP[1]}")
     else:
+        print("RETURN PACKET RECIEVED:")
         print(f"{tTL} {srcP[0]}, {srcP[1]} {destP[0]}, {destP[1]}")
     # determine if responder is destination address if so exit
 
