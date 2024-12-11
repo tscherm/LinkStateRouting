@@ -419,9 +419,10 @@ def forwardpacket(data, addr, pType):
                 # check if packet should be sent back to trace immediately
                 # send 'O' packet back to src
                 if srcKey == destKey:
-                    # no need to change packet
+                    # just change packet type
+                    forwardPacket = pType = ord('O').to_bytes(1, 'big') + data[1:]
                     nextHop = (str(ipaddress.ip_address(senderSend[0])), senderSend[1])
-                    sendSoc.sendto(data, nextHop)
+                    sendSoc.sendto(forwardPacket, nextHop)
                 else:
                     sendRouteTraceReturn(srcRTSend, senderSend)
                 return

@@ -68,11 +68,13 @@ def routetrace():
         try:
             # try to recieve packet and handle it
             data, addr = recSoc.recvfrom(4096)
-            print(data)
+            
             handlePacket(data, tTL)
         except BlockingIOError:
             pass # Not sure what happened
         except KeyboardInterrupt:
+            sys.exit()
+        except SystemExit:
             sys.exit()
         except:
             print("Something went wrong when listening for or interacting with packet.")
@@ -97,7 +99,6 @@ def sendRTPacket(tTL):
 
 # handles packets and prints if needed
 def handlePacket(data, tTL):
-    print(data[0])
     if data[0] != 79:
         return # wrong packet type
     
