@@ -422,6 +422,10 @@ def buildForwardTable():
 
     # initialize Djikstra's with neighbors
     for neighbor in topology[hostKey].keys():
+        # do not add anything with infinite distance
+        if topology[hostKey][neighbor] >= sys.maxsize / 4:
+            continue
+        
         bisect.insort(possiblePaths, (topology[hostKey][neighbor], [hostKey, neighbor]))
     nodesReached[hostKey] = (0, None)
 
@@ -439,6 +443,9 @@ def buildForwardTable():
 
         # add next nodes to possible paths
         for key in topology[destNode].keys():
+            # do not add anything with infinite distance
+            if topology[destNode][key] >= sys.maxsize / 4:
+                continue
             nextDist = pPath[0] + topology[destNode][key]
             nextPath = copy.deepcopy(pPath[1])
             nextPath.append(key)
@@ -447,6 +454,7 @@ def buildForwardTable():
 
     # make new forwarding table to be copied over old forwarding table
     newForwardingTable = [(0, None)] * len(nodesLocationDict.keys())
+    nodesReached.pop(hostKey) # remove host value needed earlier
 
     for destKey in nodesLocationDict.keys():
         nextHop = nodesReached[destKey][1][1]
@@ -463,8 +471,29 @@ def buildForwardTable():
 
 def printTandFT():
     # print topology
-    print(topology)
-    print(forwardingTable)
+    print("Topology:\n")
+
+    for node in nodesLocationDict.keys():
+        # make beginning of string and wether to print variable
+        strToPrint = f"{str(node[0])},{node[1]}"
+        toPrint = False
+
+        for next in topology[node].keys():
+            # do not add infinite values
+            if topology[node][next] >= sys.maxsize / 4:
+                continue
+
+            toPrint = True
+            strToPrint += f" {str(next[0])},{next[1]},{topology[node][next]}"
+
+        if toPrint:
+            print(strToPrint)
+
+    # print Forwarding Table
+    print("Forwarding Table:\n")
+    
+    for entry in forwardingTable:
+        print(f"{str(entry[0][0])},{entry[0][1]} {str(entry[1][0])},{entry[1][1]}")
 
 
 def cleanup():
