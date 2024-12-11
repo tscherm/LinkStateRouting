@@ -362,7 +362,7 @@ def forwardpacket(data, addr, pType):
         # check if TTL is 0
         oldTTL = socket.ntohl(int.from_bytes(data[17:21], 'big'))
         if oldTTL == 0:
-            sendRouteTraceTimeOut(srcSend, senderSend)
+            sendRouteTraceReturn(srcSend, senderSend)
             return # do not forward this
 
         # decrememnt TTL and make new packet
@@ -379,7 +379,7 @@ def forwardpacket(data, addr, pType):
                 sendSoc.sendto(forwardPacket, nextHop)
             else: # 'T'
                 # send 'O' packet back to src
-                sendRouteTraceTimeOut(srcSend, senderSend)
+                sendRouteTraceReturn(srcSend, senderSend)
 
 
         # send packet to next destination
@@ -387,9 +387,27 @@ def forwardpacket(data, addr, pType):
         sendSoc.sendto(forwardPacket, nextHop)
 
 
+# route trace packet format: type 1B, srcIP 4B, srcPort 2B, destIP 4B, destPort 2B, senderIP 4B, senderPort 2B, TTL 4B
+# switch oldSrc address to destination address
+# put own address into src address
+# keep sender port the same
+def sendRouteTraceReturn(destAddr, senderAddr):
+    # make new values
+    pType = ord('O').to_bytes(1, 'big')
+    srcIP = socket.htonl(int(hostKey[0])).to_bytes(4, 'big')
+    srcPort = socket.htons(hostKey[1]).to_bytes(2, 'big')
+    destIP = socket.htonl(destAddr[0]).to_bytes(4, 'big')
+    destPort = socket.htons(destAddr[1]).to_bytes(2, 'big')
+    senderIP = socket.htonl(senderAddr[0]).to_bytes(4, 'big')
+    senderPort = socket.htons(senderAddr[1]).to_bytes(2, 'big')
+    tTL = socket.htonl(19).to_bytes(4, 'big') # number of possibe hops
+    rTPacket = pType + srcIP + srcPort + destIP + destPort + senderIP + senderPort + tTL
 
-def sendRouteTraceTimeOut(destAddr, senderAddr):
-    pass
+    # send packet to next destination
+    destKey = (ipaddress.ip_address(destAddr[0]), destAddr[1])
+    nextHop = forwardingTable[neighborsLocationDict[destKey]][1]
+    sendSoc.sendto(rTPacket, nextHop)
+
 
 def buildForwardTable():
     pass
