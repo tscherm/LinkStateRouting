@@ -80,20 +80,43 @@ def sendRTPacket(tTL):
     src = (str(srcAddr[0]), srcAddr[1])
     sendSoc.sendto(packet, src)
 
+    if args.debug == 1:
+        print("ROUTETRACE PACKET SENT:")
+        print(f"SOURCE: {(str(srcAddr[0]), srcAddr[1])}")
+        print(f"DESTINATION: {(str(destAddr[0]), destAddr[1])}")
+        print(f"TTL: {tTL}")
+
+
 
 # handles packets and prints if needed
 def handlePacket(data):
     if data[0] != 79:
         return # wrong packet type
     
+    print("RETURN PACKET RECIEVED:")
+    
     # print responders IP and port
+    # get destination and source addresses
+    srcIP = socket.ntohl(int.from_bytes(data[1:5], 'big'))
+    srcPort = socket.ntohs(int.from_bytes(data[5:7], 'big'))
+    srcKey = (ipaddress.ip_address(srcIP), srcPort)
+    srcAddrP = (str(ipaddress.ip_address(srcIP)), srcPort)
+    print(f"FROM: {srcAddrP}")
 
     # print debug information if needed
     if args.debug == 1:
-        pass
+        destIP = socket.ntohl(int.from_bytes(data[7:11], 'big'))
+        destPort = socket.ntohs(int.from_bytes(data[11:13], 'big'))
+        destAddrP = (str(ipaddress.ip_address(destIP)), destPort)
+        print(f"TO: {destAddrP}")
+
+        tTL = socket.ntohl(int.from_bytes(data[17:21], 'big'))
+        print(f"TTL: {tTL}")
 
     # determine if responder is destination address if so exit
 
+    if (srcKey == destAddr):
+        sys.exit()
 
 
 def cleanup():
