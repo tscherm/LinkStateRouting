@@ -158,9 +158,7 @@ def handlePacket(pack, time):
                 isUp[neighborsLocationDict[senderKey]] = True
                 # I assume no link distance data is sent over helloMessage
                 # and it is assumed to be the same as the txt file described
-                # ??? Do i need to update the backwards sending topology[senderKey][hostKey] ???
-                topology[hostKey][senderKey] = topologyRef[hostKey][senderKey]
-                topology[senderKey][hostKey] = topologyRef[senderKey][hostKey]
+                addNode(senderKey)
                 return (pType, True)
             else:
                 return (pType, False) # topology wasn't changed even if time was
@@ -187,11 +185,31 @@ def handlePacket(pack, time):
             # check topology
             newDict = pickle.loads(pack[25:25 + length])
 
+            # check if the node is up if not add it
+            if not isUp[nodesLocationDict[senderKey]]:
+                addNode(senderKey)
+                return (pType, True)
+
             # check if newDict is different from old dict
             if newDict == topology[senderKey]:
                 return (pType, False) # most likely a timed packet
+            
             # update new topology
-            topology[senderKey] = newDict
+            # check what differences there are
+            savedOld = copy.deepcopy(topology[senderKey].keys())
+            savedNew = copy.deepcopy(newDict.keys())
+
+            for link in savedNew:
+                if link not in savedOld:
+                    # add new link
+                    addNode(link)
+            
+
+            for link in savedOld:
+                if link not in savedNew:
+                    # remove link
+                    removeNode(link)
+            
             return (pType, True)
         else:
             # add new node
@@ -203,6 +221,18 @@ def handlePacket(pack, time):
         return (pType, False)
 
     return (None, False) # wrong packet
+
+# go through topology and add node
+def addNode(node):
+    for next in topology[node].keys():
+        topology[node][next] = topologyRef[node][next]
+        topology[next][node] = topologyRef[next][node]
+
+# go through topology and remove node
+def removeNode(node):
+    for next in topology[node].keys():
+        topology[node][next] = sys.maxsize
+        topology[next][node] = sys.maxsize
 
 
 def createroutes():
@@ -250,8 +280,7 @@ def createroutes():
                 isUp[i] = False
                 
                 # update topology
-                topology[hostKey][key] = sys.maxsize
-                topology[key][hostKey] = sys.maxsize
+                removeNode(key)
             
         if updateFT:
             buildForwardTable()
