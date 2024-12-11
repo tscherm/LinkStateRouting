@@ -404,20 +404,7 @@ def forwardpacket(data, addr, pType):
         senderPort = socket.ntohs(int.from_bytes(data[17:19], 'big'))
         senderSend = (senderIP, senderPort)
 
-        # check if TTL is 0
         oldTTL = socket.ntohl(int.from_bytes(data[19:23], 'big'))
-        if oldTTL == 0:
-            # check if it should be forwarded to trace program
-            if pType == 79 and destKey == hostKey:
-                # since it is not to another emulator it can be sent to trace
-                # no need to change packet
-                nextHop = (str(ipaddress.ip_address(senderSend[0])), senderSend[1])
-                sendSoc.sendto(data, nextHop)
-                return
-
-            # send time out message
-            sendRouteTraceReturn(srcRTSend, senderSend)
-            return # do not forward this
 
         # check if this is the destination address
         if destKey == hostKey:
@@ -432,6 +419,12 @@ def forwardpacket(data, addr, pType):
                 # send 'O' packet back to src
                 sendRouteTraceReturn(srcRTSend, senderSend)
                 return
+
+        # check if TTL is 0
+        if oldTTL == 0:
+            # send time out message
+            sendRouteTraceReturn(srcRTSend, senderSend)
+            return # do not forward this
 
         # decrememnt TTL and make new packet
         first = data[:19]
