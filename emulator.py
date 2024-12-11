@@ -469,11 +469,11 @@ def buildForwardTable():
     newForwardingTable = [(0, None)] * len(nodesLocationDict.keys())
     nodesReached.pop(hostKey) # remove host value needed earlier
 
-    for destKey in nodesLocationDict.keys():
+    for destKey in nodesReached.keys():
         nextHopK = nodesReached[destKey][1][1]
-        nextHop = (str(nextHopK[0]), nextHop[1])
+        nextHop = (str(nextHopK[0]), nextHopK[1])
         forwardingValue = (destKey, nextHop)
-        newForwardingTable[nodesReached[destKey]] = forwardingValue
+        newForwardingTable.append(forwardingValue)
 
     # copy new forwarding table over old forwarding table
     global forwardingTable
