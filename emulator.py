@@ -532,12 +532,15 @@ def printTandFT():
         if toPrint:
             print(strToPrint)
 
+    print() # extra line for spacing
+
     # print Forwarding Table
-    print("\nForwarding Table:\n")
+    print("Forwarding Table:\n")
     
     for entry in forwardingTable:
         print(f"{str(entry[0][0])},{entry[0][1]} {entry[1][0]},{entry[1][1]}")
 
+    print() # extra line for spacing
 
 def cleanup():
     recSoc.close()
