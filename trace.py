@@ -93,7 +93,7 @@ def sendRTPacket(tTL):
 
     if args.debug == 1:
         print("ROUTETRACE PACKET SENT:")
-        print(f"{tTL} {srcP[0]}, {srcP[1]} {destP[0]}, {destP[1]}")
+        print(f"{tTL+1} {srcP[0]}, {srcP[1]} {destP[0]}, {destP[1]}")
 
 
 
@@ -114,10 +114,10 @@ def handlePacket(data, tTL):
     destP = (str(ipaddress.ip_address(destIP)), destPort)
 
     if args.debug == 0:
-        print(f"{tTL} {srcP[0]}, {srcP[1]}")
+        print(f"{tTL+1} {srcP[0]}, {srcP[1]}")
     else:
         print("RETURN PACKET RECIEVED:")
-        print(f"{tTL} {srcP[0]}, {srcP[1]} {destP[0]}, {destP[1]}")
+        print(f"{tTL+1} {srcP[0]}, {srcP[1]} {destP[0]}, {destP[1]}")
     # determine if responder is destination address if so exit
 
     if (srcKey == destAddr):
