@@ -245,7 +245,7 @@ def createroutes():
         updateFT = False
         for key in neighborsLocationDict.keys():
             i = neighborsLocationDict[key]
-            if latestTimestamp[i] < timedelta.now() - downInterval and isUp[i]:
+            if latestTimestamp[i][1] < datetime.now() - downInterval and isUp[i]:
                 updateFT = True
                 isUp[i] = False
                 
@@ -466,7 +466,7 @@ def buildForwardTable():
             bisect.insort(possiblePaths, (nextDist, nextPath))
 
     # make new forwarding table to be copied over old forwarding table
-    newForwardingTable = [(0, None)] * len(nodesLocationDict.keys())
+    newForwardingTable = list()
     nodesReached.pop(hostKey) # remove host value needed earlier
 
     for destKey in nodesReached.keys():
@@ -504,7 +504,7 @@ def printTandFT():
             print(strToPrint)
 
     # print Forwarding Table
-    print("Forwarding Table:\n")
+    print("\nForwarding Table:\n")
     
     for entry in forwardingTable:
         print(f"{str(entry[0][0])},{entry[0][1]} {entry[1][0]},{entry[1][1]}")
