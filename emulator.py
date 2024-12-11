@@ -6,6 +6,7 @@ import ipaddress
 from datetime import datetime, timedelta
 import pickle
 import copy
+import bisect
 
 parser = argparse.ArgumentParser(description="Link State Routing Emulator")
 
@@ -159,6 +160,7 @@ def handlePacket(pack, time):
                 # and it is assumed to be the same as the txt file described
                 # ??? Do i need to update the backwards sending topology[senderKey][hostKey] ???
                 topology[hostKey][senderKey] = topologyRef[hostKey][senderKey]
+                topology[senderKey][hostKey] = topologyRef[senderKey][hostKey]
                 return (pType, True)
             else:
                 return (pType, False) # topology wasn't changed even if time was
@@ -246,6 +248,10 @@ def createroutes():
             if latestTimestamp[i] < timedelta.now() - downInterval and isUp[i]:
                 updateFT = True
                 isUp[i] = False
+                
+                # update topology
+                topology[hostKey][key] = sys.maxsize
+                topology[key][hostKey] = sys.maxsize
             
         if updateFT:
             buildForwardTable()
@@ -410,7 +416,55 @@ def sendRouteTraceReturn(destAddr, senderAddr):
 
 
 def buildForwardTable():
-    pass
+    # make new lists
+    nodesReached = dict() # {nodeKey: (distance, [p, a, t, h])}
+    possiblePaths = list() # [(distance, [p, a, t, h]), ...]
+
+    # initialize Djikstra's with neighbors
+    for neighbor in topology[hostKey].keys():
+        bisect.insort(possiblePaths, (topology[hostKey][neighbor], [hostKey, neighbor]))
+    nodesReached[hostKey] = (0, None)
+
+    # do Djikstra's
+    while len(nodesReached) < len(topology):
+        # get next possible path
+        pPath = possiblePaths.pop(0)
+        destNode = pPath[1][-1]
+
+        if destNode in nodesReached.keys(): # don't repeat nodes
+            continue
+
+        # add nodes to reached lists
+        nodesReached[destNode] = pPath
+
+        # add next nodes to possible paths
+        for key in topology[destNode].keys():
+            nextDist = pPath[0] + topology[destNode][key]
+            nextPath = copy.deepcopy(pPath[1])
+            nextPath.append(key)
+
+            bisect.insort(possiblePaths, (nextDist, nextPath))
+
+    # make new forwarding table to be copied over old forwarding table
+    newForwardingTable = [(0, None)] * len(nodesLocationDict.keys())
+
+    for destKey in nodesLocationDict.keys():
+        nextHop = nodesReached[destKey][1][1]
+        forwardingValue = (destKey, nextHop)
+        newForwardingTable[nodesReached[destKey]] = forwardingValue
+
+    # copy new forwarding table over old forwarding table
+    global forwardingTable
+    forwardingTable = copy.deepcopy(newForwardingTable)
+
+    # print topology and forwarding table every time it changes
+    # since this is called every time it changes it is sufficient to print this here
+    printTandFT()
+
+def printTandFT():
+    # print topology
+    print(topology)
+    print(forwardingTable)
 
 
 def cleanup():
