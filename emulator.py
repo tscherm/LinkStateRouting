@@ -25,7 +25,7 @@ hostname = socket.gethostname()
 ipAddr = socket.gethostbyname(hostname)
 
 reqAddr = (ipAddr, args.port)
-hostKey = (ipaddress.ipaddress(ipAddr), int(args.port))
+hostKey = (ipaddress.ip_address(ipAddr), int(args.port))
 
 # open socket
 try:
