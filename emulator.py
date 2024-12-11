@@ -443,7 +443,7 @@ def buildForwardTable():
     nodesReached[hostKey] = (0, None)
 
     # do Djikstra's
-    while len(nodesReached) < len(topology):
+    while len(nodesReached) < len(topology) and len(possiblePaths) > 0:
         # get next possible path
         pPath = possiblePaths.pop(0)
         destNode = pPath[1][-1]
