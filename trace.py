@@ -55,16 +55,21 @@ except:
 sendSoc = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 def routetrace():
-    for i in range(20): # at most 20 nodes
+    if args.debug == 0:
+        print("Hop#  IP Port")
+    else:
+        print("Hop# SRCIP SRCPort DESTIP DESTPort")
+
+    for tTL in range(20): # at most 20 nodes
         # send new packet
-        sendRTPacket(i)
+        sendRTPacket(tTL)
         
         # wait for response
         try:
             # try to recieve packet and handle it
             data, addr = recSoc.recvfrom(4096)
 
-            handlePacket(data)
+            handlePacket(data, tTL)
         except BlockingIOError:
             pass # Not sure what happened
         except KeyboardInterrupt:
@@ -80,16 +85,20 @@ def sendRTPacket(tTL):
     src = (str(srcAddr[0]), srcAddr[1])
     sendSoc.sendto(packet, src)
 
-    if args.debug == 1:
-        print("ROUTETRACE PACKET SENT:")
-        print(f"SOURCE: {(str(srcAddr[0]), srcAddr[1])}")
-        print(f"DESTINATION: {(str(destAddr[0]), destAddr[1])}")
-        print(f"TTL: {tTL}")
+    # print packet information
+    print("ROUTETRACE PACKET SENT:")
+    srcP = (str(srcAddr[0]), srcAddr[1])
+    destP = (str(destAddr[0]), destAddr[1])
+
+    if args.debug == 0:
+        print(f"{tTL} {srcP[0]}, {srcP[1]}")
+    else:
+        print(f"{tTL} {srcP[0]}, {srcP[1]} {destP[0]}, {destP[1]}")
 
 
 
 # handles packets and prints if needed
-def handlePacket(data):
+def handlePacket(data, tTL):
     if data[0] != 79:
         return # wrong packet type
     
@@ -100,19 +109,16 @@ def handlePacket(data):
     srcIP = socket.ntohl(int.from_bytes(data[1:5], 'big'))
     srcPort = socket.ntohs(int.from_bytes(data[5:7], 'big'))
     srcKey = (ipaddress.ip_address(srcIP), srcPort)
-    srcAddrP = (str(ipaddress.ip_address(srcIP)), srcPort)
-    print(f"FROM: {srcAddrP}")
+    srcP = (str(ipaddress.ip_address(srcIP)), srcPort)
 
-    # print debug information if needed
-    if args.debug == 1:
-        destIP = socket.ntohl(int.from_bytes(data[7:11], 'big'))
-        destPort = socket.ntohs(int.from_bytes(data[11:13], 'big'))
-        destAddrP = (str(ipaddress.ip_address(destIP)), destPort)
-        print(f"TO: {destAddrP}")
+    destIP = socket.ntohl(int.from_bytes(data[7:11], 'big'))
+    destPort = socket.ntohs(int.from_bytes(data[11:13], 'big'))
+    destP = (str(ipaddress.ip_address(destIP)), destPort)
 
-        tTL = socket.ntohl(int.from_bytes(data[17:21], 'big'))
-        print(f"TTL: {tTL}")
-
+    if args.debug == 0:
+        print(f"{tTL} {srcP[0]}, {srcP[1]}")
+    else:
+        print(f"{tTL} {srcP[0]}, {srcP[1]} {destP[0]}, {destP[1]}")
     # determine if responder is destination address if so exit
 
     if (srcKey == destAddr):
