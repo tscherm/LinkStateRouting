@@ -407,26 +407,35 @@ def forwardpacket(data, addr, pType):
         # check if TTL is 0
         oldTTL = socket.ntohl(int.from_bytes(data[19:23], 'big'))
         if oldTTL == 0:
+            # check if it should be forwarded to trace program
+            if pType == 79 and destKey == hostKey:
+                # since it is not to another emulator it can be sent to trace
+                # no need to change packet
+                nextHop = (str(ipaddress.ip_address(senderSend[0])), senderSend[1])
+                sendSoc.sendto(data, nextHop)
+                return
+
+            # send time out message
             sendRouteTraceReturn(srcRTSend, senderSend)
             return # do not forward this
-
-        # decrememnt TTL and make new packet
-        first = data[:19]
-        forwardPacket = first + socket.htonl(oldTTL - 1).to_bytes(4, 'big')
 
         # check if this is the destination address
         if destKey == hostKey:
             # check what type of packet this is
             if pType == 79: # 'O'
                 # send packet to route trace application
+                # no need to change packet
                 nextHop = (str(ipaddress.ip_address(senderSend[0])), senderSend[1])
-                sendSoc.sendto(forwardPacket, nextHop)
+                sendSoc.sendto(data, nextHop)
                 return
             else: # 'T'
                 # send 'O' packet back to src
                 sendRouteTraceReturn(srcRTSend, senderSend)
                 return
 
+        # decrememnt TTL and make new packet
+        first = data[:19]
+        forwardPacket = first + socket.htonl(oldTTL - 1).to_bytes(4, 'big')
 
         # send packet to next destination
         nextHop = forwardingTable[neighborsLocationDict[destKey]][1]
