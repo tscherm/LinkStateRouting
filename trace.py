@@ -68,7 +68,7 @@ def routetrace():
         try:
             # try to recieve packet and handle it
             data, addr = recSoc.recvfrom(4096)
-
+            print(data)
             handlePacket(data, tTL)
         except BlockingIOError:
             pass # Not sure what happened
