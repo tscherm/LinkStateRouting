@@ -302,7 +302,16 @@ def sendLinkState():
 def forwardpacket(data, addr, pType):
     # check packet type and what to do with it
     if pType == 76: # network traffic
-        pass # send to next spot in forwarding table
+        # send to next spot in forwarding table
+        destIP = socket.ntohl(int.from_bytes(data[7:11], 'big'))
+        destPort = socket.ntohs(int.from_bytes(data[11:13], 'big'))
+        destKey = (ipaddress.ip_address(destIP), destPort)
+
+        # find next hop and send
+        nextHop = forwardingTable[neighborsLocationDict[destKey]][1]
+        sendSoc.sendto(data, nextHop)
+
+        return
 
     if pType == 78: # link state traffic # reliable flooding
         # check if sequence number is old
@@ -383,14 +392,18 @@ def forwardpacket(data, addr, pType):
                 # send packet to route trace application
                 nextHop = (str(ipaddress.ip_address(senderSend[0])), senderSend[1])
                 sendSoc.sendto(forwardPacket, nextHop)
+                return
             else: # 'T'
                 # send 'O' packet back to src
                 sendRouteTraceReturn(srcSend, senderSend)
+                return
 
 
         # send packet to next destination
         nextHop = forwardingTable[neighborsLocationDict[destKey]][1]
         sendSoc.sendto(forwardPacket, nextHop)
+
+        return
 
 
 # route trace packet format: type 1B, srcIP 4B, srcPort 2B, destIP 4B, destPort 2B, senderIP 4B, senderPort 2B, TTL 4B
@@ -457,7 +470,8 @@ def buildForwardTable():
     nodesReached.pop(hostKey) # remove host value needed earlier
 
     for destKey in nodesLocationDict.keys():
-        nextHop = nodesReached[destKey][1][1]
+        nextHopK = nodesReached[destKey][1][1]
+        nextHop = (str(nextHopK[0]), nextHop[1])
         forwardingValue = (destKey, nextHop)
         newForwardingTable[nodesReached[destKey]] = forwardingValue
 
@@ -493,7 +507,7 @@ def printTandFT():
     print("Forwarding Table:\n")
     
     for entry in forwardingTable:
-        print(f"{str(entry[0][0])},{entry[0][1]} {str(entry[1][0])},{entry[1][1]}")
+        print(f"{str(entry[0][0])},{entry[0][1]} {entry[1][0]},{entry[1][1]}")
 
 
 def cleanup():
@@ -502,6 +516,8 @@ def cleanup():
 
 def main():
     readtopology()
+    buildForwardTable()
+    createroutes()
     cleanup()
 
 if __name__ == '__main__':
