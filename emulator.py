@@ -149,9 +149,9 @@ def handlePacket(pack, time):
         # check if node is neighbor already
         if senderKey in neighborsLocationDict.keys():
             # check if it is an old time update if it is not
-            oldTime = latestTimestamp[neighborsLocationDict[senderKey]]
+            oldTime = latestTimestamp[neighborsLocationDict[senderKey]][1]
             if oldTime < time:
-                latestTimestamp[neighborsLocationDict[senderKey]] = time
+                latestTimestamp[neighborsLocationDict[senderKey]] = (senderKey, time)
 
             # make this link active and update topology if needed
             if not isUp[neighborsLocationDict[senderKey]]:
@@ -178,9 +178,9 @@ def handlePacket(pack, time):
         # check if node exists
         if senderKey in nodesLocationDict.keys():
             # check if sequence number is new and update
-            if largestSeqNo[nodesLocationDict[senderKey]] >= seqNo:
+            if largestSeqNo[nodesLocationDict[senderKey]][1] >= seqNo:
                 return (pType, False) # seqNo was old
-            largestSeqNo[nodesLocationDict[senderKey]] = seqNo
+            largestSeqNo[nodesLocationDict[senderKey]] = (senderKey, seqNo)
 
             # check topology
             newDict = pickle.loads(pack[25:25 + length])
@@ -349,7 +349,7 @@ def forwardpacket(data, addr, pType):
         srcKey = (ipaddress.ip_address(srcIP), srcPort)
         seqNo = socket.ntohl(int.from_bytes(data[13:17], 'big'))
 
-        if largestSeqNo[nodesLocationDict[srcKey]] >= seqNo:
+        if largestSeqNo[nodesLocationDict[srcKey]][1] >= seqNo:
             return # seqNo was old
 
         # check if TTL is 0
