@@ -175,7 +175,7 @@ def handlePacket(pack, time):
         
 
     if pType == 76: # link state message
-        print(f"{args.port}: pType")
+
         # get sequence number
         seqNo = socket.ntohl(int.from_bytes(pack[13:17], 'big'))
         length = socket.ntohl(int.from_bytes(pack[21:25], 'big'))
@@ -318,7 +318,7 @@ def createroutes():
             if latestTimestamp[j][1] < datetime.now() - downInterval and isUp[i]:
                 updateFTandLS = True
                 isUp[i] = False
-                print(f"{args.port}: DOWN {key}")
+                
                 # update topology
                 removeNode(key)
             
