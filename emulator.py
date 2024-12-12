@@ -517,6 +517,13 @@ def sendRouteTraceReturn(destAddr, senderAddr):
 
     # send packet to next destination
     destKey = (ipaddress.ip_address(destAddr[0]), destAddr[1])
+
+    # check if it should send back to sender
+    if destKey == hostKey:
+        nextHop = (str(ipaddress.ip_address(senderAddr[0])), senderAddr[1])
+        return
+
+    # otherwise forward to next destination
     nextHop = forwardingTable[nodesLocationDict[destKey]][1]
     if nextHop == None:
             print(f"NO PATH FOUND TO {destKey}")
