@@ -169,7 +169,7 @@ def handlePacket(pack, time):
             latestTimestamp.append((senderKey, time))
             # add new node
             nodesLocationDict[senderKey] = len(largestSeqNo)
-            largestSeqNo.append((senderKey, time))
+            largestSeqNo.append((senderKey, 0))
             isUp.append(True)
             return (pType, True)
         
