@@ -385,7 +385,7 @@ def forwardpacket(data, addr, pType):
         destKey = (ipaddress.ip_address(destIP), destPort)
 
         # find next hop and send
-        nextHop = forwardingTable[neighborsLocationDict[destKey]][1]
+        nextHop = forwardingTable[nodesLocationDict[destKey]][1]
         sendSoc.sendto(data, nextHop)
 
         return
@@ -486,7 +486,7 @@ def forwardpacket(data, addr, pType):
         forwardPacket = first + socket.htonl(oldTTL - 1).to_bytes(4, 'big')
 
         # send packet to next destination
-        nextHop = forwardingTable[neighborsLocationDict[destKey]][1]
+        nextHop = forwardingTable[nodesLocationDict[destKey]][1]
         sendSoc.sendto(forwardPacket, nextHop)
 
         return
