@@ -314,7 +314,8 @@ def createroutes():
         updateFTandLS = False
         for key in neighborsLocationDict.keys():
             i = nodesLocationDict[key]
-            if latestTimestamp[i][1] < datetime.now() - downInterval and isUp[i]:
+            j = neighborsLocationDict[key]
+            if latestTimestamp[j][1] < datetime.now() - downInterval and isUp[i]:
                 updateFTandLS = True
                 isUp[i] = False
                 print(f"{args.port}: DOWN {key}")
