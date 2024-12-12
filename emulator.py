@@ -46,10 +46,10 @@ topologyRef = dict() # keep dictionary of initial links between nodes
 
 nodesLocationDict = dict() # keep ordered list of destinations (excluding self)
 largestSeqNo = list() # largest sequence number for each node
+isUp = list() # list of whether nodes are up or down
 
 neighborsLocationDict = dict() # doctionary of the locations of 
 latestTimestamp = list() # last time stamp a HelloMessage was recieved (from neighbors)
-isUp = list() # list of whether neighbors are up or down
 
 forwardingTable = list() # [(dest, nextHop)]
 
@@ -106,6 +106,7 @@ def readtopology():
                 # add to nodes dict and sequence number
                 nodesLocationDict[key] = len(largestSeqNo)
                 largestSeqNo.append((key, 0))
+                isUp.append(True)
 
     except FileNotFoundError:
         print(f"File {args.fileName} not found")
@@ -118,7 +119,6 @@ def readtopology():
     for node in topology[hostKey].keys():
         neighborsLocationDict[node] = len(latestTimestamp)
         latestTimestamp.append((node, time))
-        isUp.append(True)
 
     # make topologyRef
     topologyRef = copy.deepcopy(topology)
@@ -155,8 +155,8 @@ def handlePacket(pack, time):
                 latestTimestamp[neighborsLocationDict[senderKey]] = (senderKey, time)
 
             # make this link active and update topology if needed
-            if not isUp[neighborsLocationDict[senderKey]]:
-                isUp[neighborsLocationDict[senderKey]] = True
+            if not isUp[nodesLocationDict[senderKey]]:
+                isUp[nodesLocationDict[senderKey]] = True
                 # I assume no link distance data is sent over helloMessage
                 # and it is assumed to be the same as the txt file described
                 addNode(senderKey)
@@ -167,6 +167,9 @@ def handlePacket(pack, time):
             # add new neighbor
             neighborsLocationDict[senderKey] = len(latestTimestamp)
             latestTimestamp.append((senderKey, time))
+            # add new node
+            nodesLocationDict[senderKey] = len(largestSeqNo)
+            largestSeqNo.append((senderKey, time))
             isUp.append(True)
             return (pType, True)
         
@@ -187,32 +190,47 @@ def handlePacket(pack, time):
             # check topology
             newDict = pickle.loads(pack[25:25 + length])
 
+            # find what nodes to add and what noes to remove
+            toAdd = list()
+            toRemove = list()
+            changeMade = False
+
             # check if the node is up if not add it
             if not isUp[nodesLocationDict[senderKey]]:
-                addNode(senderKey)
-                return (pType, True)
-
-            # check if newDict is different from old dict
-            if newDict == topology[senderKey]:
-                return (pType, False) # most likely a timed packet
+                toAdd.append(senderKey)
+                isUp[nodesLocationDict[senderKey]] = True
+                changeMade = True
             
             # update new topology
             # check what differences there are
-            savedOld = list(topology[senderKey].keys())
-            savedNew = list(newDict.keys())
-            print(f"{args.port}: {savedOld}, {savedNew}")
-            for link in savedNew:
-                if link not in savedOld:
-                    # add new link
-                    addNode(link)
-            
 
-            for link in savedOld:
-                if link not in savedNew:
-                    # remove link
-                    removeNode(link)
+            for link in topology[senderKey]:
+                oldDist = topology[senderKey][link]
+                newDist = newDict[senderKey][link]
+
+                # check if this link is newly reachable
+                if oldDist >= sys.maxsize / 4 and newDist < sys.maxsize / 4:
+                    toAdd.append(link)
+                    isUp[nodesLocationDict[link]] = True
+                    changeMade = True
+
+                # check if this link is newly unreachable
+                if newDist >= sys.maxsize / 4 and oldDist < sys.maxsize / 4:
+                    toRemove.append(link)
+                    isUp[nodesLocationDict[link]] = False
+                    changeMade = True
+
+            # add and remove values as needed
+            for node in toAdd:
+                addNode(node)
+
+            for node in toRemove:
+                removeNode(node)
             
-            return (pType, True)
+            if changeMade:
+                return (pType, True)
+            else:
+                return (pType, False)
         else:
             # add new node
             nodesLocationDict[senderKey] = len(largestSeqNo)
@@ -230,12 +248,15 @@ def addNode(node):
     global isUp
     # add node to dict
     for next in topology[node].keys():
+        # make sure only nodes that are up are added back
+        if not isUp[nodesLocationDict[next]]:
+            continue
         topology[node][next] = topologyRef[node][next]
         topology[next][node] = topologyRef[next][node]
 
     # make node up if it is in neighors
     if node in neighborsLocationDict:
-        isUp[neighborsLocationDict[node]] = True
+        isUp[nodesLocationDict[node]] = True
 
 # go through topology and remove node
 # update forward table and send link state
@@ -248,7 +269,7 @@ def removeNode(node):
     
     # make node not up if it is in neighors
     if node in neighborsLocationDict:
-        isUp[neighborsLocationDict[node]] = False
+        isUp[nodesLocationDict[node]] = False
 
 
 
