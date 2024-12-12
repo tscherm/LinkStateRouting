@@ -204,9 +204,9 @@ def handlePacket(pack, time):
             # update new topology
             # check what differences there are
 
-            for link in topology[senderKey]:
+            for link in topologyRef[senderKey]:
                 oldDist = topology[senderKey][link]
-                newDist = newDict[senderKey][link]
+                newDist = newDict[link]
 
                 # check if this link is newly reachable
                 if oldDist >= sys.maxsize / 4 and newDist < sys.maxsize / 4:
@@ -313,7 +313,7 @@ def createroutes():
         # check for neighbors that have not sent helloMessage
         updateFTandLS = False
         for key in neighborsLocationDict.keys():
-            i = neighborsLocationDict[key]
+            i = nodesLocationDict[key]
             if latestTimestamp[i][1] < datetime.now() - downInterval and isUp[i]:
                 updateFTandLS = True
                 isUp[i] = False
