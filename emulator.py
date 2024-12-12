@@ -595,6 +595,8 @@ def printTandFT():
     print("Forwarding Table:\n")
     
     for entry in forwardingTable:
+        if entry == (None, None):
+            continue
         print(f"{str(entry[0][0])},{entry[0][1]} {entry[1][0]},{entry[1][1]}")
 
     print() # extra line for spacing
