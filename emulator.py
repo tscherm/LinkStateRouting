@@ -196,8 +196,8 @@ def handlePacket(pack, time):
             
             # update new topology
             # check what differences there are
-            savedOld = copy.deepcopy(topology[senderKey].keys())
-            savedNew = copy.deepcopy(newDict.keys())
+            savedOld = list(topology[senderKey].keys())
+            savedNew = list(newDict.keys())
 
             for link in savedNew:
                 if link not in savedOld:
@@ -223,12 +223,14 @@ def handlePacket(pack, time):
     return (None, False) # wrong packet
 
 # go through topology and add node
+# update forward table and send link state
 def addNode(node):
     for next in topology[node].keys():
         topology[node][next] = topologyRef[node][next]
         topology[next][node] = topologyRef[next][node]
 
 # go through topology and remove node
+# update forward table and send link state
 def removeNode(node):
     for next in topology[node].keys():
         topology[node][next] = sys.maxsize
@@ -252,7 +254,7 @@ def createroutes():
                 buildForwardTable()
 
             # check if this recieved packet should be forwarded
-            if handled[0] == 76 or handled[0] == 78 or handled[0] == 79 or handled[0] == 84: # 'N', 'L', 'O', 'T'
+            if handled[0] == 76 or handled[0] == 78 or handled[0] == 79 or handled[0] == 84: # 'L', 'N', 'O', 'T'
                 forwardpacket(data, addr, handled[0])
 
             # check if a new link state message needs to be created
@@ -272,18 +274,19 @@ def createroutes():
             sayHello()
         
         # check for neighbors that have not sent helloMessage
-        updateFT = False
+        updateFTandLS = False
         for key in neighborsLocationDict.keys():
             i = neighborsLocationDict[key]
             if latestTimestamp[i][1] < datetime.now() - downInterval and isUp[i]:
-                updateFT = True
+                updateFTandLS = True
                 isUp[i] = False
                 
                 # update topology
                 removeNode(key)
             
-        if updateFT:
+        if updateFTandLS:
             buildForwardTable()
+            sendLinkState()
         
         # send LinkStateMessage
         if lastLinkStateMessage <= datetime.now() - linkInterval:
@@ -293,6 +296,8 @@ def createroutes():
 # sends hello packet to all neighbors wether they are up or not
 # hello packet format: type 1B, srcIP 4B, srcPort 2B
 def sayHello():
+    global lastHelloMessage
+
     # make packet
     pType = ord('H').to_bytes(1, 'big')
     srcIP = socket.htonl(int(hostKey[0])).to_bytes(4, 'big')
@@ -304,10 +309,13 @@ def sayHello():
         dest = (str(destKey[0]), destKey[1])
         sendSoc.sendto(packet, dest)
 
+    lastHelloMessage = datetime.now()
+
 # sends link state from this address
 # link state packet format: type 1B, srcIP 4B, srcPort 2B, lastSenderIP 4B, lastSenderPort 2B, seqNo 4B, TTL 4B, len 4B, data
 def sendLinkState():
     global lastSeqNoSent
+    global lastLinkStateMessage
     lastSeqNoSent += 1
     # serialize data
     linkStateToSend = pickle.dumps(topology[hostKey])
@@ -326,6 +334,8 @@ def sendLinkState():
     for destKey in neighborsLocationDict.keys():
         dest = (str(destKey[0]), destKey[1])
         sendSoc.sendto(packet, dest)
+
+    lastLinkStateMessage = datetime.now()
 
 
 def forwardpacket(data, addr, pType):
