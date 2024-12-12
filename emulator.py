@@ -521,6 +521,7 @@ def sendRouteTraceReturn(destAddr, senderAddr):
     # check if it should send back to sender
     if destKey == hostKey:
         nextHop = (str(ipaddress.ip_address(senderAddr[0])), senderAddr[1])
+        sendSoc.sendto(rTPacket, nextHop)
         return
 
     # otherwise forward to next destination
