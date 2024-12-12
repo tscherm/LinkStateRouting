@@ -340,7 +340,7 @@ def sendLinkState():
 
 def forwardpacket(data, addr, pType):
     # check packet type and what to do with it
-    if pType == 76: # network traffic
+    if pType == 78: # network traffic
         # send to next spot in forwarding table
         destIP = socket.ntohl(int.from_bytes(data[7:11], 'big'))
         destPort = socket.ntohs(int.from_bytes(data[11:13], 'big'))
@@ -352,7 +352,7 @@ def forwardpacket(data, addr, pType):
 
         return
 
-    if pType == 78: # link state traffic # reliable flooding
+    if pType == 76: # link state traffic # reliable flooding
         # check if sequence number is old
         srcIP = socket.ntohl(int.from_bytes(data[1:5], 'big'))
         srcPort = socket.ntohs(int.from_bytes(data[5:7], 'big'))
