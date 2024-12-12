@@ -442,6 +442,7 @@ def forwardpacket(data, addr, pType):
         srcIP = socket.ntohl(int.from_bytes(data[1:5], 'big'))
         srcPort = socket.ntohs(int.from_bytes(data[5:7], 'big'))
         srcKey = (ipaddress.ip_address(srcIP), srcPort)
+        srcRTSend = (int(ipaddress.ip_address(srcIP)), srcPort)
 
         destIP = socket.ntohl(int.from_bytes(data[7:11], 'big'))
         destPort = socket.ntohs(int.from_bytes(data[11:13], 'big'))
@@ -472,7 +473,7 @@ def forwardpacket(data, addr, pType):
                     nextHop = (str(ipaddress.ip_address(senderSend[0])), senderSend[1])
                     sendSoc.sendto(forwardPacket, nextHop)
                 else:
-                    sendRouteTraceReturn(destRTSend, senderSend)
+                    sendRouteTraceReturn(srcRTSend, senderSend)
                 return
 
         # check if TTL is 0
