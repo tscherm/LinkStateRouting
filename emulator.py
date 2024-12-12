@@ -386,6 +386,9 @@ def forwardpacket(data, addr, pType):
 
         # find next hop and send
         nextHop = forwardingTable[nodesLocationDict[destKey]][1]
+        if nextHop == None:
+            print(f"NO PATH FOUND TO {destKey}")
+            return
         sendSoc.sendto(data, nextHop)
 
         return
@@ -488,6 +491,9 @@ def forwardpacket(data, addr, pType):
 
         # send packet to next destination
         nextHop = forwardingTable[nodesLocationDict[destKey]][1]
+        if nextHop == None:
+            print(f"NO PATH FOUND TO {destKey}")
+            return
         sendSoc.sendto(forwardPacket, nextHop)
 
         return
@@ -512,7 +518,11 @@ def sendRouteTraceReturn(destAddr, senderAddr):
     # send packet to next destination
     destKey = (ipaddress.ip_address(destAddr[0]), destAddr[1])
     nextHop = forwardingTable[nodesLocationDict[destKey]][1]
+    if nextHop == None:
+            print(f"NO PATH FOUND TO {destKey}")
+            return
     sendSoc.sendto(rTPacket, nextHop)
+    return
 
 
 def buildForwardTable():
