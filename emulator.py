@@ -510,7 +510,7 @@ def sendRouteTraceReturn(destAddr, senderAddr):
 
     # send packet to next destination
     destKey = (ipaddress.ip_address(destAddr[0]), destAddr[1])
-    nextHop = forwardingTable[neighborsLocationDict[destKey]][1]
+    nextHop = forwardingTable[nodesLocationDict[destKey]][1]
     sendSoc.sendto(rTPacket, nextHop)
 
 
