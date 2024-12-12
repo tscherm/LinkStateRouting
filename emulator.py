@@ -482,7 +482,7 @@ def forwardpacket(data, addr, pType):
         # check if TTL is 0
         if oldTTL == 0:
             # send time out message
-            sendRouteTraceReturn(destRTSend, senderSend)
+            sendRouteTraceReturn(srcRTSend, senderSend)
             return # do not forward this
 
         # decrememnt TTL and make new packet
