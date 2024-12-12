@@ -552,14 +552,14 @@ def buildForwardTable():
             bisect.insort(possiblePaths, (nextDist, nextPath))
 
     # make new forwarding table to be copied over old forwarding table
-    newForwardingTable = list()
+    newForwardingTable = [(None, None)] * len(largestSeqNo)
     nodesReached.pop(hostKey) # remove host value needed earlier
 
     for destKey in nodesReached.keys():
         nextHopK = nodesReached[destKey][1][1]
         nextHop = (str(nextHopK[0]), nextHopK[1])
         forwardingValue = (destKey, nextHop)
-        newForwardingTable.append(forwardingValue)
+        newForwardingTable[nodesLocationDict[destKey]] = forwardingValue
 
     # copy new forwarding table over old forwarding table
     global forwardingTable
