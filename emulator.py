@@ -76,6 +76,7 @@ def readtopology():
     global largestSeqNo
     global neighborsLocationDict
     global latestTimestamp
+    global isUp
 
     time = datetime.now()
 
@@ -225,20 +226,34 @@ def handlePacket(pack, time):
 # go through topology and add node
 # update forward table and send link state
 def addNode(node):
+    global isUp
+    # add node to dict
     for next in topology[node].keys():
         topology[node][next] = topologyRef[node][next]
         topology[next][node] = topologyRef[next][node]
 
+    # make node up if it is in neighors
+    if node in neighborsLocationDict:
+        isUp[neighborsLocationDict[node]] = True
+
 # go through topology and remove node
 # update forward table and send link state
 def removeNode(node):
+    global isUp
+    # remove node from dict
     for next in topology[node].keys():
         topology[node][next] = sys.maxsize
         topology[next][node] = sys.maxsize
+    
+    # make node not up if it is in neighors
+    if node in neighborsLocationDict:
+        isUp[neighborsLocationDict[node]] = False
+
 
 
 def createroutes():
     global lastHelloMessage
+    global isUp
     # check for packet
     while isListening:
         try:
