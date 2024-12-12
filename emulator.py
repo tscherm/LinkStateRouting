@@ -442,11 +442,11 @@ def forwardpacket(data, addr, pType):
         srcIP = socket.ntohl(int.from_bytes(data[1:5], 'big'))
         srcPort = socket.ntohs(int.from_bytes(data[5:7], 'big'))
         srcKey = (ipaddress.ip_address(srcIP), srcPort)
-        srcRTSend = (int(ipaddress.ip_address(srcIP)), srcPort)
 
         destIP = socket.ntohl(int.from_bytes(data[7:11], 'big'))
         destPort = socket.ntohs(int.from_bytes(data[11:13], 'big'))
         destKey = (ipaddress.ip_address(destIP), destPort)
+        destRTSend = (int(ipaddress.ip_address(destIP)), destPort)
 
         senderIP = socket.ntohl(int.from_bytes(data[13:17], 'big'))
         senderPort = socket.ntohs(int.from_bytes(data[17:19], 'big'))
@@ -472,13 +472,13 @@ def forwardpacket(data, addr, pType):
                     nextHop = (str(ipaddress.ip_address(senderSend[0])), senderSend[1])
                     sendSoc.sendto(forwardPacket, nextHop)
                 else:
-                    sendRouteTraceReturn(srcRTSend, senderSend)
+                    sendRouteTraceReturn(destRTSend, senderSend)
                 return
 
         # check if TTL is 0
         if oldTTL == 0:
             # send time out message
-            sendRouteTraceReturn(srcRTSend, senderSend)
+            sendRouteTraceReturn(destRTSend, senderSend)
             return # do not forward this
 
         # decrememnt TTL and make new packet
